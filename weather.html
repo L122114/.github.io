@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>冷链物流温度监控系统</title>
+    <style>
+        #map {height: 600px; width: 100%;}
+        .control-panel {padding: 20px; background: #f5f5f5;}
+        .region-select {margin: 10px; padding: 8px;}
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <select id="region" class="region-select">
+            <option value="east_china">华东地区</option>
+            <option value="north_china">华北地区</option>
+            <option value="central_china">华中地区</option>
+            <option value="south_china">华南地区</option>
+            <option value="southwest">西南地区</option>
+            <option value="northwest">西北地区</option>
+            <option value="northeast">东北地区</option>
+        </select>
+        <button onclick="loadData()">加载数据</button>
+    </div>
+    <div id="map"></div>
+
+<script>
+// 配置信息（请勿修改）
+const config = {
+    hefeng: {
+        key: '01b965b7ee814e10b7b072d0d47af87a',
+        dailyUrl: 'https://devapi.qweather.com/v7/weather/7d'
+    },
+    regions: {
+        east_china: ["上海", "江苏", "浙江", "安徽", "福建", "江西", "山东"],
+        north_china: ["北京", "天津", "河北", "山西", "内蒙古"],
+        central_china: ["河南", "湖北", "湖南"],
+        south_china: ["广东", "广西", "海南"],
+        southwest: ["重庆", "四川", "贵州", "云南", "西藏"],
+        northwest: ["陕西", "甘肃", "青海", "宁夏", "新疆"],
+        northeast: ["辽宁", "吉林", "黑龙江"]
+    }
+};
+
+// 核心逻辑
+async function loadData() {
+    const region = document.getElementById('region').value;
+    const provinces = config.regions[region];
+    
+    for (const province of provinces) {
+        const cities = await getLocations(province);
+        for (const city of cities) {
+            const weather = await getWeather(city.location.id);
+            if (checkTemperature(weather.daily[0])) {
+                displayData(city, weather);
+            }
+        }
+    }
+}
+
+// 获取行政区域
+async function getLocations(province) {
+    const url = `https://geoapi.qweather.com/v2/city/lookup?key=${config.hefeng.key}&range=cn&adm=${province}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    return data.location.filter(loc => loc.category === '区县');
+}
+
+// 获取天气数据
+async function getWeather(locationId) {
+    const url = `${config.hefeng.dailyUrl}?location=${locationId}&key=${config.hefeng.key}`;
+    const response = await fetch(url);
+    return await response.json();
+}
+
+// 温度检测
+function checkTemperature(dailyData) {
+    const tempRange = [
+        {min: -100, max: -10},   // 第一段
+        {min: -10, max: -5},    // 第二段
+        {min: -5, max: 0},      // 第三段
+        {min: 0, max: 5}        // 第四段
+    ];
+    
+    return tempRange.some(range => 
+        dailyData.tempMin <= range.max && 
+        dailyData.tempMax >= range.min
+    );
+}
+
+// 显示数据
+function displayData(city, weather) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <h3>${city.name}</h3>
+        <p>今日温度：${weather.daily[0].tempMin}℃ ~ ${weather.daily[0].tempMax}℃</p>
+        <p>未来7天预报：${weather.daily.map(d => d.tempDay).join(' → ')}℃</p>
+    `;
+    document.body.appendChild(div);
+}
+</script>
+
+<script>
+// 高德地图初始化（已集成您的密钥）
+window._AMapSecurityConfig = { securityJsCode: '6795acfac0c5db47aaca1500f6552b59' };
+const map = new AMap.Map('map', {
+    key: '8b8a95b5a87b146d0caa0deb2387074d',
+    version: "2.0",
+    zoom: 5,
+    center: [116.397428, 39.90923]
+});
+</script>
+<script src="https://webapi.amap.com/maps?v=2.0&key=8b8a95b5a87b146d0caa0deb2387074d"></script>
+</body>
+</html>
